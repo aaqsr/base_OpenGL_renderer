@@ -41,12 +41,18 @@ class IterationsPerSecondCounter
     /**
      * @brief A counter for the number of ticks since the last log.
      */
-    uint32_t numFrames = 0;
+    uint32_t numIterations = 0;
 
     /**
      * @brief The timestamp of the last time a log was printed.
      */
     std::chrono::steady_clock::time_point timeOfLastPrint;
+
+    /**
+     * @brief A string printed before the performance metric is printed. Can be
+     * used to title the metric to signal, e.g, what is producing it.
+     */
+    std::string title;
 
     /**
      * @brief A string describing the unit of the rate (e.g., "FPS", "Updates").
@@ -66,10 +72,10 @@ class IterationsPerSecondCounter
      * @param secondsPerIterationUnit The string to display for a single
      * iteration's time (e.g., "frame").
      */
-    IterationsPerSecondCounter(std::string iterationUnit,
+    IterationsPerSecondCounter(std::string title, std::string iterationUnit,
                                std::string secondsPerIterationUnit)
       : timeOfLastPrint(std::chrono::steady_clock::now()),
-        iterationUnit(std::move(iterationUnit)),
+        title{std::move(title)}, iterationUnit(std::move(iterationUnit)),
         millisecondsPerIterationUnit(std::move(secondsPerIterationUnit))
     {
     }
@@ -84,17 +90,17 @@ class IterationsPerSecondCounter
      */
     void tick()
     {
-        numFrames++;
+        numIterations++;
         auto now = std::chrono::steady_clock::now();
         std::chrono::duration<double> elapsedSeconds = now - timeOfLastPrint;
         if (elapsedSeconds.count() >= 1.0) {
             double msPerIteration =
-              (elapsedSeconds.count() * 1000.0) / numFrames;
-            Logger::log(
-              std::format("{:<6}{}\t{:<9.5f}ms/{}", numFrames, iterationUnit,
-                          msPerIteration, millisecondsPerIterationUnit));
+              (elapsedSeconds.count() * 1000.0) / numIterations;
+            Logger::log(std::format(
+              "{}:\t{:<6}{}\t{:<9.5f}ms/{}", title, numIterations, iterationUnit,
+              msPerIteration, millisecondsPerIterationUnit));
 
-            numFrames = 0;
+            numIterations = 0;
             timeOfLastPrint = now;
         }
     }
