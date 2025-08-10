@@ -1,3 +1,7 @@
+vcpkg_installed/
+
+imgui.ini
+
 docs/compiled/
 
 build

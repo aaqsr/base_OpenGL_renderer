@@ -1,0 +1,17 @@
+{
+    "name": "base-opengl-renderer",
+    "version-string": "0.1.0",
+    "dependencies": [
+        "glfw3",
+        "glew",
+        "glm",
+        {
+            "name": "imgui",
+            "default-features": false,
+            "features": [
+                "glfw-binding",
+                "opengl3-binding"
+            ]
+        }
+    ]
+}

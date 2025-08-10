@@ -10,6 +10,7 @@ Window::Window(std::string _title, uint32_t initWidth, uint32_t initHeight)
 {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
@@ -50,6 +51,8 @@ Window::Window(std::string _title, uint32_t initWidth, uint32_t initHeight)
     int framebufferHeight = 0;
     glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
     glViewport(0, 0, framebufferWidth, framebufferHeight);
+
+    glClearColor(0.2F, 0.3F, 0.3F, 1.0F); // Set a colour background
 }
 
 Window::Window(Window&& other) noexcept
@@ -110,13 +113,13 @@ void Window::swapBuffers()
 void Window::beginUpdate()
 {
     // TODO: this kills performance. and it's only useful if more than 1 window.
+    // If ever >1 window: needs to be reconsidered.
     // makeContextCurrent();
 
     framerateCounter.tick();
 
     // Not clearing the back buffer causes trails
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glClearColor(0.2F, 0.3F, 0.3F, 1.0F); // Set a colour background
 }
 
 void Window::endUpdate()
@@ -139,3 +142,9 @@ void Window::makeContextCurrent()
 {
     glfwMakeContextCurrent(window);
 }
+
+float Window::getWidthOverHeight() const
+{
+    return static_cast<float>(width) / static_cast<float>(height);
+}
+

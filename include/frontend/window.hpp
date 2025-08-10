@@ -40,4 +40,6 @@ class Window
     // Could be an RAII object, but I'd rather be explicit to make it clearer
     void beginUpdate();
     void endUpdate();
+
+    [[nodiscard]] float getWidthOverHeight() const;
 };
