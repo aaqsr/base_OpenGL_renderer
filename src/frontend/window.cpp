@@ -8,8 +8,8 @@ Window::Window(std::string _title, uint32_t initWidth, uint32_t initHeight)
   : framerateCounter{"Window '" + _title + "'", "FPS", "frame"},
     width{initWidth}, height{initHeight}, title{std::move(_title)}
 {
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 #ifdef __APPLE__

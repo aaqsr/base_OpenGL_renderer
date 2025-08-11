@@ -1,3 +1,6 @@
+#include "frontend/camera.h"
+#include "frontend/mesh.hpp"
+#include "frontend/transform.hpp"
 #include "frontend/window.hpp"
 #include "util/error.hpp"
 #include "util/logger.hpp"
@@ -85,7 +88,7 @@ namespace
 {
 
 const char* vertexShaderSource = R"(
-#version 330 core
+#version 410 core
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aColor;
 
@@ -103,7 +106,7 @@ void main()
 )";
 
 const char* fragmentShaderSource = R"(
-#version 330 core
+#version 410 core
 in vec3 vertexColor;
 out vec4 FragColor;
 
@@ -157,6 +160,41 @@ uint32_t createShaderProgram()
     return shaderProgram;
 }
 
+void setInitialOpenGLRenderConfig()
+{
+    glEnable(GL_CULL_FACE);  // don't draw back faces
+    glEnable(GL_DEPTH_TEST); // Depth buffer
+    glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE); // allow writing to depth buffer
+    glDepthRange(0.0, 1.0);
+    glClearDepth(1.0);   // clear depth buffer to 1.0 (far plane)
+    glfwSwapInterval(1); // enable VSync
+}
+
+void showPerfMonitor()
+{
+    static float fps_history[100] = {};
+    static float ms_history[100] = {};
+    static int fps_offset = 0;
+
+    float fps = ImGui::GetIO().Framerate;
+    float ms = 1000.0f / (fps > 0.0f ? fps : 1.0f);
+
+    // Update history
+    fps_history[fps_offset] = fps;
+    ms_history[fps_offset] = ms;
+    fps_offset = (fps_offset + 1) % IM_ARRAYSIZE(fps_history);
+
+    ImGui::Begin("Perf Monitor");
+    ImGui::PlotLines("FPS Instant", fps_history, IM_ARRAYSIZE(fps_history),
+                     fps_offset);
+    ImGui::Text("FPS: %.1f", fps);
+    ImGui::PlotLines("Frame Time (ms)", ms_history, IM_ARRAYSIZE(ms_history),
+                     fps_offset);
+    ImGui::Text("Frame Time: %.2f ms", ms);
+    ImGui::End();
+}
+
 void runRainbowCube()
 {
     if (glfwInit() == 0) {
@@ -165,188 +203,148 @@ void runRainbowCube()
 
     Window mainWin{"Rainbow Cube"};
 
-    //
-    // OpenGL configuration
-    //
-    glEnable(GL_CULL_FACE);  // don't draw back faces
-    glEnable(GL_DEPTH_TEST); // Depth buffer
-    glDepthFunc(GL_LESS);
-    glDepthMask(GL_TRUE); // allow writing to depth buffer
-    glDepthRange(0.0, 1.0);
-    glClearDepth(1.0);   // clear depth buffer to 1.0 (far plane)
-    glfwSwapInterval(1); // enable VSync
+    setInitialOpenGLRenderConfig();
 
     printOpenGLInfo();
 
+    struct ColourVertex
+    {
+        glm::vec3 pos;
+        glm::vec3 col;
+    } __attribute__((packed));
+
     // Cube vertices with positions and colors (rainbow faces)
-    float vertices[] = {
+    std::vector<ColourVertex> vertices = {
       // Front face (Red)
-      -0.5F, -0.5F, 0.5F, 1.0F, 0.0F, 0.0F, // bottom-left
-      0.5F, -0.5F, 0.5F, 1.0F, 0.0F, 0.0F,  // bottom-right
-      0.5F, 0.5F, 0.5F, 1.0F, 0.0F, 0.0F,   // top-right
-      -0.5F, 0.5F, 0.5F, 1.0F, 0.0F, 0.0F,  // top-left
+      { .pos = {-0.5F, -0.5F, 0.5F}, .col = {1.0F, 0.0F, 0.0F}}, // bottom-left
+      {  .pos = {0.5F, -0.5F, 0.5F}, .col = {1.0F, 0.0F, 0.0F}}, // bottom-right
+      {   .pos = {0.5F, 0.5F, 0.5F}, .col = {1.0F, 0.0F, 0.0F}}, // top-right
+      {  .pos = {-0.5F, 0.5F, 0.5F}, .col = {1.0F, 0.0F, 0.0F}}, // top-left
 
       // Back face (Green)
-      -0.5F, -0.5F, -0.5F, 0.0F, 1.0F, 0.0F, // bottom-left
-      0.5F, -0.5F, -0.5F, 0.0F, 1.0F, 0.0F,  // bottom-right
-      -0.5F, 0.5F, -0.5F, 0.0F, 1.0F, 0.0F,  // top-left
-      0.5F, 0.5F, -0.5F, 0.0F, 1.0F, 0.0F,   // top-right
+      {.pos = {-0.5F, -0.5F, -0.5F}, .col = {0.0F, 1.0F, 0.0F}}, // bottom-left
+      { .pos = {0.5F, -0.5F, -0.5F}, .col = {0.0F, 1.0F, 0.0F}}, // bottom-right
+      { .pos = {-0.5F, 0.5F, -0.5F}, .col = {0.0F, 1.0F, 0.0F}}, // top-left
+      {  .pos = {0.5F, 0.5F, -0.5F}, .col = {0.0F, 1.0F, 0.0F}}, // top-right
 
       // Left face (Blue)
-      -0.5F, -0.5F, -0.5F, 0.0F, 0.0F, 1.0F, // bottom-left
-      -0.5F, -0.5F, 0.5F, 0.0F, 0.0F, 1.0F,  // bottom-right
-      -0.5F, 0.5F, 0.5F, 0.0F, 0.0F, 1.0F,   // top-right
-      -0.5F, 0.5F, -0.5F, 0.0F, 0.0F, 1.0F,  // top-left
+      {.pos = {-0.5F, -0.5F, -0.5F}, .col = {0.0F, 0.0F, 1.0F}}, // bottom-left
+      { .pos = {-0.5F, -0.5F, 0.5F}, .col = {0.0F, 0.0F, 1.0F}}, // bottom-right
+      {  .pos = {-0.5F, 0.5F, 0.5F}, .col = {0.0F, 0.0F, 1.0F}}, // top-right
+      { .pos = {-0.5F, 0.5F, -0.5F}, .col = {0.0F, 0.0F, 1.0F}}, // top-left
 
       // Right face (Yellow)
-      0.5F, -0.5F, 0.5F, 1.0F, 1.0F, 0.0F,  // bottom-left
-      0.5F, -0.5F, -0.5F, 1.0F, 1.0F, 0.0F, // bottom-right
-      0.5F, 0.5F, -0.5F, 1.0F, 1.0F, 0.0F,  // top-right
-      0.5F, 0.5F, 0.5F, 1.0F, 1.0F, 0.0F,   // top-left
+      {  .pos = {0.5F, -0.5F, 0.5F}, .col = {1.0F, 1.0F, 0.0F}}, // bottom-left
+      { .pos = {0.5F, -0.5F, -0.5F}, .col = {1.0F, 1.0F, 0.0F}}, // bottom-right
+      {  .pos = {0.5F, 0.5F, -0.5F}, .col = {1.0F, 1.0F, 0.0F}}, // top-right
+      {   .pos = {0.5F, 0.5F, 0.5F}, .col = {1.0F, 1.0F, 0.0F}}, // top-left
 
       // Top face (Magenta)
-      -0.5F, 0.5F, 0.5F, 1.0F, 0.0F, 1.0F,  // bottom-left
-      0.5F, 0.5F, 0.5F, 1.0F, 0.0F, 1.0F,   // bottom-right
-      0.5F, 0.5F, -0.5F, 1.0F, 0.0F, 1.0F,  // top-right
-      -0.5F, 0.5F, -0.5F, 1.0F, 0.0F, 1.0F, // top-left
+      {  .pos = {-0.5F, 0.5F, 0.5F}, .col = {1.0F, 0.0F, 1.0F}}, // bottom-left
+      {   .pos = {0.5F, 0.5F, 0.5F}, .col = {1.0F, 0.0F, 1.0F}}, // bottom-right
+      {  .pos = {0.5F, 0.5F, -0.5F}, .col = {1.0F, 0.0F, 1.0F}}, // top-right
+      { .pos = {-0.5F, 0.5F, -0.5F}, .col = {1.0F, 0.0F, 1.0F}}, // top-left
 
       // Bottom face (Cyan)
-      -0.5F, -0.5F, -0.5F, 0.0F, 1.0F, 1.0F, // bottom-left
-      0.5F, -0.5F, -0.5F, 0.0F, 1.0F, 1.0F,  // bottom-right
-      0.5F, -0.5F, 0.5F, 0.0F, 1.0F, 1.0F,   // top-right
-      -0.5F, -0.5F, 0.5F, 0.0F, 1.0F, 1.0F   // top-left
+      {.pos = {-0.5F, -0.5F, -0.5F}, .col = {0.0F, 1.0F, 1.0F}}, // bottom-left
+      { .pos = {0.5F, -0.5F, -0.5F}, .col = {0.0F, 1.0F, 1.0F}}, // bottom-right
+      {  .pos = {0.5F, -0.5F, 0.5F}, .col = {0.0F, 1.0F, 1.0F}}, // top-right
+      { .pos = {-0.5F, -0.5F, 0.5F}, .col = {0.0F, 1.0F, 1.0F}}  // top-left
     };
 
-    uint32_t indices[] = {// Front face
-                          0, 1, 2, 2, 3, 0,
-                          // Back face
-                          5, 4, 6, 6, 7, 5,
-                          // Left face
-                          8, 9, 10, 10, 11, 8,
-                          // Right face
-                          12, 13, 14, 14, 15, 12,
-                          // Top face
-                          16, 17, 18, 18, 19, 16,
-                          // Bottom face
-                          20, 21, 22, 22, 23, 20};
+    std::vector<uint32_t> indices = {// Front face
+                                     0, 1, 2, 2, 3, 0,
+                                     // Back face
+                                     5, 4, 6, 6, 7, 5,
+                                     // Left face
+                                     8, 9, 10, 10, 11, 8,
+                                     // Right face
+                                     12, 13, 14, 14, 15, 12,
+                                     // Top face
+                                     16, 17, 18, 18, 19, 16,
+                                     // Bottom face
+                                     20, 21, 22, 22, 23, 20};
 
-    // Create and bind VAO, VBO, EBO
-    uint32_t VAO = 0;
-    uint32_t VBO = 0;
-    uint32_t EBO = 0;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
+    VertexLayout colourVertexLayout =
+      VertexLayout{}.addAttribute(0, 3, GL_FLOAT).addAttribute(1, 3, GL_FLOAT);
 
-    glBindVertexArray(VAO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices,
-                 GL_STATIC_DRAW);
-
-    // Position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
-                          (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // Colour attribute
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
-                          (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
+    Mesh cubeMesh{vertices, colourVertexLayout, indices};
 
     uint32_t shaderProgram = createShaderProgram();
 
-    // Setup Dear ImGui context
+    Transform cubeTransform;
+    Camera camera{
+      .position = {0.0F, 0.0F, 3.0F},
+        .target = {0.0F, 0.0F, 0.0F}
+    };
+    camera.aspectRatio = mainWin.getWidthOverHeight();
+
+    // Setup ImGui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |=
-      ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     ImGui::StyleColorsLight();
     ImGui_ImplGlfw_InitForOpenGL(mainWin.getWindow(), true);
-    ImGui_ImplOpenGL3_Init("#version 330 core");
+    ImGui_ImplOpenGL3_Init("#version 410 core");
 
-    // ImGui variables
-    bool show_controls = true;
-    bool show_demo = false;
-    bool auto_rotate = true;
-    float rotation_speed = 1.0f;
-    glm::vec3 rotation_axis(0.5f, 1.0f, 0.0f);
-    glm::vec3 camera_position(0.0f, 0.0f, -3.0f);
-    float fov = 45.0f;
-    float near_plane = 0.1f;
-    float far_plane = 100.0f;
+    // UI state
+    bool show_controls = true, show_demo = false, auto_rotate = true;
+    float rotation_speed = 1.0f, fov = 75.0f, near_plane = 0.1f,
+          far_plane = 100.0f;
+    glm::vec3 rotation_axis{0.5f, 1.0f, 0.0f};
+    glm::vec3 camera_position = camera.position;
+    float manual_rotation_x = 0.0f, manual_rotation_y = 0.0f,
+          manual_rotation_z = 0.0f;
+    float timeValue = 0.0f;
     ImVec4 clear_color = ImVec4(0.2f, 0.3f, 0.3f, 1.0f);
-    static float manual_rotation_x = 0.0f;
-    static float manual_rotation_y = 0.0f;
-    static float manual_rotation_z = 0.0f;
-    static float timeValue = 0.0f;
 
     while (!mainWin.shouldClose()) {
         glfwPollEvents();
 
-        // Start the Dear ImGui frame
+        // Start ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // Update time for auto rotation
-        if (auto_rotate) {
+        if (auto_rotate)
             timeValue += 0.01f * rotation_speed;
-        }
 
         mainWin.beginUpdate();
-
-        // Set clear color from ImGui
         glClearColor(clear_color.x, clear_color.y, clear_color.z,
                      clear_color.w);
-
-        // Use our shader program
         glUseProgram(shaderProgram);
 
-        // Create transformation matrices
-        glm::mat4 model = glm::mat4(1.0f);
-        glm::mat4 view = glm::mat4(1.0f);
-        glm::mat4 projection = glm::mat4(1.0f);
-
-        // Apply rotations
         if (auto_rotate) {
-            model = glm::rotate(model, timeValue, rotation_axis);
+            cubeTransform.rotation = glm::angleAxis(
+              timeValue * rotation_speed, glm::normalize(rotation_axis));
         } else {
-            model = glm::rotate(model, glm::radians(manual_rotation_x),
-                                glm::vec3(1.0f, 0.0f, 0.0f));
-            model = glm::rotate(model, glm::radians(manual_rotation_y),
-                                glm::vec3(0.0f, 1.0f, 0.0f));
-            model = glm::rotate(model, glm::radians(manual_rotation_z),
-                                glm::vec3(0.0f, 0.0f, 1.0f));
+            cubeTransform.rotation = glm::quat(glm::vec3(
+              glm::radians(manual_rotation_x), glm::radians(manual_rotation_y),
+              glm::radians(manual_rotation_z)));
         }
 
-        // Set camera position
-        view = glm::translate(view, camera_position);
+        glm::mat4 model = cubeTransform.computeModelMatrix();
 
-        // Create perspective projection
-        projection = glm::perspective(glm::radians(fov), mainWin.getWidthOverHeight(),
-                                      near_plane, far_plane);
+        camera.position = camera_position;
+        camera.fov = fov;
+        camera.nearPlane = near_plane;
+        camera.farPlane = far_plane;
+        camera.aspectRatio = mainWin.getWidthOverHeight();
 
-        // Pass matrices to shader
-        uint32_t modelLoc = glGetUniformLocation(shaderProgram, "model");
-        uint32_t viewLoc = glGetUniformLocation(shaderProgram, "view");
-        uint32_t projLoc = glGetUniformLocation(shaderProgram, "projection");
+        glm::mat4 view = camera.computeViewMatrix();
+        glm::mat4 projection = camera.computeProjectionMatrix();
 
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1,
+                           GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1,
+                           GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1,
+                           GL_FALSE, glm::value_ptr(projection));
 
-        // Draw the cube
-        glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+        cubeMesh.draw();
 
-        // === ImGui UI ===
-
-        // Main controls window
+        // GUI
         if (show_controls) {
             ImGui::Begin("Rainbow Cube Controls", &show_controls);
 
@@ -362,21 +360,22 @@ void runRainbowCube()
             ImGui::Checkbox("Auto Rotate", &auto_rotate);
 
             if (auto_rotate) {
-                ImGui::SliderFloat("Speed", &rotation_speed, 0.0f, 5.0f);
-                ImGui::SliderFloat3("Rotation Axis",
-                                    glm::value_ptr(rotation_axis), -1.0f, 1.0f);
+                ImGui::SliderFloat("Rotation Speed", &rotation_speed, 0.0f,
+                                   10.0f);
+                ImGui::SliderFloat3("Rotation Axis", &rotation_axis.x, -1.0f,
+                                    1.0f);
                 ImGui::Text("Time: %.2f", timeValue);
                 if (ImGui::Button("Reset Time")) {
                     timeValue = 0.0f;
                 }
             } else {
                 ImGui::Text("Manual Rotation (degrees)");
-                ImGui::SliderFloat("X Rotation", &manual_rotation_x, -180.0f,
-                                   180.0f);
-                ImGui::SliderFloat("Y Rotation", &manual_rotation_y, -180.0f,
-                                   180.0f);
-                ImGui::SliderFloat("Z Rotation", &manual_rotation_z, -180.0f,
-                                   180.0f);
+                ImGui::SliderFloat("X Rotation", &manual_rotation_x, 0.0f,
+                                   360.0f);
+                ImGui::SliderFloat("Y Rotation", &manual_rotation_y, 0.0f,
+                                   360.0f);
+                ImGui::SliderFloat("Z Rotation", &manual_rotation_z, 0.0f,
+                                   360.0f);
                 if (ImGui::Button("Reset Rotation")) {
                     manual_rotation_x = manual_rotation_y = manual_rotation_z =
                       0.0f;
@@ -384,18 +383,17 @@ void runRainbowCube()
             }
 
             ImGui::Separator();
-
-            // Camera controls
             ImGui::Text("Camera");
-            ImGui::SliderFloat3("Position", glm::value_ptr(camera_position),
-                                -10.0f, 10.0f);
-            ImGui::SliderFloat("FOV", &fov, 10.0f, 120.0f);
-            ImGui::SliderFloat("Near Plane", &near_plane, 0.01f, 1.0f);
-            ImGui::SliderFloat("Far Plane", &far_plane, 10.0f, 1000.0f);
+
+            ImGui::SliderFloat3("Camera Position", &camera_position.x, -10.0f,
+                                10.0f);
+            ImGui::SliderFloat("FOV", &fov, 1.0f, 120.0f);
+            ImGui::SliderFloat("Near Plane", &near_plane, 0.01f, 10.0f);
+            ImGui::SliderFloat("Far Plane", &far_plane, 10.0f, 200.0f);
 
             if (ImGui::Button("Reset Camera")) {
                 camera_position = glm::vec3(0.0f, 0.0f, -3.0f);
-                fov = 45.0f;
+                fov = 75.0f;
                 near_plane = 0.1f;
                 far_plane = 100.0f;
             }
@@ -413,28 +411,21 @@ void runRainbowCube()
             ImGui::End();
         }
 
-        // Show ImGui demo window if requested
+        // showPerfMonitor();
+
         if (show_demo) {
             ImGui::ShowDemoWindow(&show_demo);
         }
 
-        // Render ImGui
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         mainWin.endUpdate();
     }
 
-    // Cleanup ImGui
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
-
-    // Cleanup
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    glDeleteBuffers(1, &EBO);
-    glDeleteProgram(shaderProgram);
 
     glfwTerminate();
 }
