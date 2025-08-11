@@ -1,10 +1,13 @@
-#include "frontend/camera.h"
+#include "frontend/camera.hpp"
 #include "frontend/mesh.hpp"
-#include "frontend/transform.hpp"
+#include "frontend/shader.hpp"
+#include "frontend/vertexLayout.hpp"
 #include "frontend/window.hpp"
+#include "frontend/worldPose.hpp"
 #include "util/error.hpp"
 #include "util/logger.hpp"
 
+#include <filesystem>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
@@ -61,103 +64,6 @@ void printOpenGLInfo()
     glGetIntegerv(GL_MINOR_VERSION, &minor);
     std::cout << "OpenGL Context Version: " << major << "." << minor << '\n';
     std::cout << "==========================\n" << '\n';
-}
-
-void runWindowCreate()
-{
-    if (glfwInit() == 0) {
-        throw IrrecoverableError{"Failed to initialize GLFW."};
-    }
-
-    Window mainWin;
-
-    while (!mainWin.shouldClose()) {
-        glfwPollEvents();
-
-        mainWin.beginUpdate();
-
-        mainWin.endUpdate();
-    }
-
-    glfwTerminate();
-}
-
-} // namespace
-
-namespace
-{
-
-const char* vertexShaderSource = R"(
-#version 410 core
-layout (location = 0) in vec3 aPos;
-layout (location = 1) in vec3 aColor;
-
-out vec3 vertexColor;
-
-uniform mat4 model;
-uniform mat4 view;
-uniform mat4 projection;
-
-void main()
-{
-    gl_Position = projection * view * model * vec4(aPos, 1.0);
-    vertexColor = aColor;
-}
-)";
-
-const char* fragmentShaderSource = R"(
-#version 410 core
-in vec3 vertexColor;
-out vec4 FragColor;
-
-void main()
-{
-    FragColor = vec4(vertexColor, 1.0);
-}
-)";
-
-uint32_t compileShader(uint32_t type, const char* source)
-{
-    uint32_t shader = glCreateShader(type);
-    glShaderSource(shader, 1, &source, nullptr);
-    glCompileShader(shader);
-
-    int success = 0;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (success == 0) {
-        char infoLog[512];
-        glGetShaderInfoLog(shader, 512, nullptr, infoLog);
-        throw IrrecoverableError{"Shader compilation failed: " +
-                                 std::string(infoLog)};
-    }
-
-    return shader;
-}
-
-uint32_t createShaderProgram()
-{
-    uint32_t vertexShader = compileShader(GL_VERTEX_SHADER, vertexShaderSource);
-    uint32_t fragmentShader =
-      compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
-
-    uint32_t shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-
-    int success = 0;
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-    if (success == 0) {
-        char infoLog[512];
-        glGetProgramInfoLog(shaderProgram, 512, nullptr, infoLog);
-        throw IrrecoverableError{"Shader program linking failed: " +
-                                 std::string(infoLog)};
-    }
-
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-
-    return shaderProgram;
 }
 
 void setInitialOpenGLRenderConfig()
@@ -270,9 +176,10 @@ void runRainbowCube()
 
     Mesh cubeMesh{vertices, colourVertexLayout, indices};
 
-    uint32_t shaderProgram = createShaderProgram();
+    Shader theShader{std::filesystem::path{"shaders/flatColour/vert.glsl"},
+                     std::filesystem::path{"shaders/flatColour/frag.glsl"}};
 
-    Transform cubeTransform;
+    WorldPose cubeTransform;
     Camera camera{
       .position = {0.0F, 0.0F, 3.0F},
         .target = {0.0F, 0.0F, 0.0F}
@@ -313,7 +220,6 @@ void runRainbowCube()
         mainWin.beginUpdate();
         glClearColor(clear_color.x, clear_color.y, clear_color.z,
                      clear_color.w);
-        glUseProgram(shaderProgram);
 
         if (auto_rotate) {
             cubeTransform.rotation = glm::angleAxis(
@@ -324,7 +230,7 @@ void runRainbowCube()
               glm::radians(manual_rotation_z)));
         }
 
-        glm::mat4 model = cubeTransform.computeModelMatrix();
+        glm::mat4 model = cubeTransform.computeTransform();
 
         camera.position = camera_position;
         camera.fov = fov;
@@ -335,14 +241,14 @@ void runRainbowCube()
         glm::mat4 view = camera.computeViewMatrix();
         glm::mat4 projection = camera.computeProjectionMatrix();
 
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1,
-                           GL_FALSE, glm::value_ptr(model));
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1,
-                           GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1,
-                           GL_FALSE, glm::value_ptr(projection));
+        {
+            auto boundShader = theShader.bind();
+            boundShader.setUniform("model", model);
+            boundShader.setUniform("view", view);
+            boundShader.setUniform("projection", projection);
 
-        cubeMesh.draw();
+            cubeMesh.draw(boundShader);
+        }
 
         // GUI
         if (show_controls) {
@@ -435,7 +341,6 @@ void runRainbowCube()
 int main()
 {
     try {
-        // runWindowCreate();
         runRainbowCube();
     } catch (...) {
         return 1;

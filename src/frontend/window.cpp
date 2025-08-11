@@ -116,7 +116,10 @@ void Window::beginUpdate()
     // If ever >1 window: needs to be reconsidered.
     // makeContextCurrent();
 
-    framerateCounter.tick();
+    // TODO: not needed for now since ImGUI can show it. Can we refactor
+    // framerateCounter to be better and not spam console every second with a
+    // new line?
+    // framerateCounter.tick();
 
     // Not clearing the back buffer causes trails
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -147,4 +150,3 @@ float Window::getWidthOverHeight() const
 {
     return static_cast<float>(width) / static_cast<float>(height);
 }
-

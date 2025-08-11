@@ -1,5 +1,6 @@
 #pragma once
 
+#include "frontend/shader.hpp"
 #include "indexBuffer.hpp"
 #include "vertexBuffer.hpp"
 #include "vertexLayout.hpp"
@@ -102,7 +103,8 @@ class Mesh
         glBindVertexArray(0);
     }
 
-    void draw(GLenum primitive = GL_TRIANGLES) const
+    void draw(const Shader::BindObject& /*shader*/,
+              GLenum primitive = GL_TRIANGLES) const
     {
         glBindVertexArray(vao);
         if (indexBuffer) {

@@ -14,12 +14,6 @@ struct Camera
     float nearPlane = 0.1F;
     float farPlane = 100.0F;
 
-    // Camera() = default;
-    // Camera(const glm::vec3& pos, const glm::vec3& tgt)
-    //   : position(pos), target(tgt)
-    // {
-    // }
-
     [[nodiscard]] glm::mat4 computeViewMatrix() const
     {
         return glm::lookAt(position, target, up);
@@ -41,11 +35,3 @@ struct Camera
         return glm::normalize(glm::cross(computeForward(), up));
     }
 };
-
-// // Convenience for shader uniforms - templated to work with any shader type
-// template <typename ShaderType>
-// inline void setCameraUniforms(const Camera& camera, ShaderType& shader)
-// {
-//     shader.setUniform("view", getViewMatrix(camera));
-//     shader.setUniform("projection", computeProjectionMatrix(camera));
-// }
