@@ -122,3 +122,29 @@ class Logger : public Singleton<Logger>
     /** @brief Disable log messages being registered. */
     static void disable();
 };
+
+namespace TerminalColour
+{
+constexpr static const char* GREY = "\033[90m";
+constexpr static const char* RESET = "\033[0m";
+} // namespace TerminalColour
+
+/**
+ * @brief C Macro that can print an output stream. Also prints the file and
+ * line, so you should really be using this instead.
+ * @param message The message to log in the format you would write for a stream.
+ * i.e. LOG(xyz << foo << "str")
+ */
+#define LOG(message)                                                           \
+    do {                                                                       \
+        std::ostringstream _log_stream_##__LINE__;                             \
+        _log_stream_##__LINE__ << TerminalColour::GREY << "[" << __FILE__      \
+                               << ":" << __LINE__                              \
+                               << "]: " << TerminalColour::RESET << message;   \
+        Logger::log(_log_stream_##__LINE__.str());                             \
+    } while (false)
+// Note that the message variable above is purposefully not surrounded by ( ) as
+// it should be. Else message is executed first and not in the order of the
+// stream. This fails as message has no stream object to execute if done out of
+// order :|
+// Also this could use an IIFE but the do-while style is more widely known.

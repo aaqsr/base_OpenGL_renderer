@@ -1,3 +1,4 @@
+#include "frontend/OpenGLDebug.hpp"
 #include "frontend/camera.hpp"
 #include "frontend/mesh.hpp"
 #include "frontend/shader.hpp"
@@ -8,6 +9,8 @@
 #include "util/logger.hpp"
 
 #include <filesystem>
+#include <glm/fwd.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
@@ -24,47 +27,6 @@
 
 namespace
 {
-
-void checkOpenGLError(const std::string& operation)
-{
-    GLenum error = glGetError();
-    if (error != GL_NO_ERROR) {
-        std::cout << "OpenGL Error after " << operation << ": " << error
-                  << '\n';
-        switch (error) {
-            case GL_INVALID_ENUM: std::cout << "GL_INVALID_ENUM" << '\n'; break;
-            case GL_INVALID_VALUE:
-                std::cout << "GL_INVALID_VALUE" << '\n';
-                break;
-            case GL_INVALID_OPERATION:
-                std::cout << "GL_INVALID_OPERATION" << '\n';
-                break;
-            case GL_OUT_OF_MEMORY:
-                std::cout << "GL_OUT_OF_MEMORY" << '\n';
-                break;
-            default: std::cout << "Unknown error code" << '\n'; break;
-        }
-    } else {
-        std::cout << operation << ": OK" << '\n';
-    }
-}
-
-void printOpenGLInfo()
-{
-    std::cout << "\n=== OpenGL Information ===" << '\n';
-    std::cout << "Vendor: " << glGetString(GL_VENDOR) << '\n';
-    std::cout << "Renderer: " << glGetString(GL_RENDERER) << '\n';
-    std::cout << "Version: " << glGetString(GL_VERSION) << '\n';
-    std::cout << "GLSL Version: " << glGetString(GL_SHADING_LANGUAGE_VERSION)
-              << '\n';
-
-    int major = 0;
-    int minor = 0;
-    glGetIntegerv(GL_MAJOR_VERSION, &major);
-    glGetIntegerv(GL_MINOR_VERSION, &minor);
-    std::cout << "OpenGL Context Version: " << major << "." << minor << '\n';
-    std::cout << "==========================\n" << '\n';
-}
 
 void setInitialOpenGLRenderConfig()
 {
@@ -99,6 +61,136 @@ void showPerfMonitor()
                      fps_offset);
     ImGui::Text("Frame Time: %.2f ms", ms);
     ImGui::End();
+}
+
+struct UIState
+{
+    ImVec4 clearColour = ImVec4(0.2F, 0.3F, 0.3F, 1.0F);
+
+    glm::vec3 rotationAxis{0.5F, 1.0F, 0.0F};
+    float rotationSpeed = 1.0F;
+
+    glm::vec3 cameraPosition;
+
+    float fov;
+    float nearPlane;
+    float farPlane;
+
+    float manualRotationX = 0.0F;
+    float manualRotationY = 0.0F;
+    float manualRotationZ = 0.0F;
+
+    float timeValue = 0.0F;
+
+    bool showControls = true;
+    bool showDemo = false;
+    bool autoRotate = true;
+
+    UIState(const Camera& cam)
+      : cameraPosition{cam.position}, fov{cam.fov}, nearPlane{cam.nearPlane},
+        farPlane{cam.farPlane}
+    {
+    }
+};
+
+void initImGui(Window& mainWin)
+{
+    // Setup ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    ImGui::StyleColorsLight();
+    ImGui_ImplGlfw_InitForOpenGL(mainWin.getWindow(), true);
+    ImGui_ImplOpenGL3_Init("#version 410 core");
+}
+
+void startImGuiFrame()
+{
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+}
+
+void drawImGuiAndUpdateState(UIState& state)
+{
+    // GUI
+    if (state.showControls) {
+        ImGui::Begin("Rainbow Cube Controls", &state.showControls);
+
+        ImGui::Text("Cube Renderer Controls");
+        ImGui::Separator();
+
+        // Rendering options
+        ImGui::ColorEdit3("Clear Color", (float*)&state.clearColour);
+        ImGui::Separator();
+
+        // Rotation controls
+        ImGui::Text("Rotation");
+        ImGui::Checkbox("Auto Rotate", &state.autoRotate);
+
+        if (state.autoRotate) {
+            ImGui::SliderFloat("Rotation Speed", &state.rotationSpeed, 0.0f,
+                               10.0f);
+            ImGui::SliderFloat3("Rotation Axis", &state.rotationAxis.x, -1.0f,
+                                1.0f);
+            ImGui::Text("Time: %.2f", state.timeValue);
+            if (ImGui::Button("Reset Time")) {
+                state.timeValue = 0.0f;
+            }
+        } else {
+            ImGui::Text("Manual Rotation (degrees)");
+            ImGui::SliderFloat("X Rotation", &state.manualRotationX, -180.0f,
+                               180.0f);
+            ImGui::SliderFloat("Y Rotation", &state.manualRotationY, -180.0f,
+                               180.0f);
+            ImGui::SliderFloat("Z Rotation", &state.manualRotationZ, -180.0f,
+                               180.0f);
+            if (ImGui::Button("Reset Rotation")) {
+                state.manualRotationX = state.manualRotationY =
+                  state.manualRotationZ = 0.0f;
+            }
+        }
+
+        ImGui::Separator();
+        ImGui::Text("Camera");
+
+        ImGui::SliderFloat3("Camera Position", &state.cameraPosition.x, -10.0f,
+                            10.0f);
+        ImGui::SliderFloat("FOV", &state.fov, 1.0f, 120.0f);
+        ImGui::SliderFloat("Near Plane", &state.nearPlane, 0.01f, 10.0f);
+        ImGui::SliderFloat("Far Plane", &state.farPlane, 10.0f, 200.0f);
+
+        if (ImGui::Button("Reset Camera")) {
+            state.cameraPosition = glm::vec3(0.0f, 0.0f, -3.0f);
+            state.fov = 75.0f;
+            state.nearPlane = 0.1f;
+            state.farPlane = 100.0f;
+        }
+
+        ImGui::Separator();
+
+        ImGuiIO& io = ImGui::GetIO();
+
+        // Performance info
+        ImGui::Text("Performance");
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
+                    1000.0f / io.Framerate, io.Framerate);
+
+        ImGui::Separator();
+        ImGui::Checkbox("Show ImGui Demo", &state.showDemo);
+
+        ImGui::End();
+    }
+
+    // showPerfMonitor();
+
+    if (state.showDemo) {
+        ImGui::ShowDemoWindow(&state.showDemo);
+    }
+
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 void runRainbowCube()
@@ -186,56 +278,44 @@ void runRainbowCube()
     };
     camera.aspectRatio = mainWin.getWidthOverHeight();
 
-    // Setup ImGui
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    ImGui::StyleColorsLight();
-    ImGui_ImplGlfw_InitForOpenGL(mainWin.getWindow(), true);
-    ImGui_ImplOpenGL3_Init("#version 410 core");
+    initImGui(mainWin);
 
-    // UI state
-    bool show_controls = true, show_demo = false, auto_rotate = true;
-    float rotation_speed = 1.0f, fov = 75.0f, near_plane = 0.1f,
-          far_plane = 100.0f;
-    glm::vec3 rotation_axis{0.5f, 1.0f, 0.0f};
-    glm::vec3 camera_position = camera.position;
-    float manual_rotation_x = 0.0f, manual_rotation_y = 0.0f,
-          manual_rotation_z = 0.0f;
-    float timeValue = 0.0f;
-    ImVec4 clear_color = ImVec4(0.2f, 0.3f, 0.3f, 1.0f);
+    UIState uiState{camera};
 
     while (!mainWin.shouldClose()) {
         glfwPollEvents();
 
-        // Start ImGui frame
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-
-        if (auto_rotate)
-            timeValue += 0.01f * rotation_speed;
+        startImGuiFrame();
 
         mainWin.beginUpdate();
-        glClearColor(clear_color.x, clear_color.y, clear_color.z,
-                     clear_color.w);
+        glClearColor(uiState.clearColour.x, uiState.clearColour.y,
+                     uiState.clearColour.z, uiState.clearColour.w);
 
-        if (auto_rotate) {
-            cubeTransform.rotation = glm::angleAxis(
-              timeValue * rotation_speed, glm::normalize(rotation_axis));
+        if (uiState.autoRotate) {
+            float deltaAngle = 0.01F * uiState.rotationSpeed;
+            glm::quat incrementalRotation =
+              glm::angleAxis(deltaAngle, glm::normalize(uiState.rotationAxis));
+
+            cubeTransform.rotation =
+              incrementalRotation * cubeTransform.rotation;
+
+            glm::vec3 eulerDegrees =
+              glm::degrees(glm::eulerAngles(cubeTransform.rotation));
+            uiState.manualRotationX = eulerDegrees.x;
+            uiState.manualRotationY = eulerDegrees.y;
+            uiState.manualRotationZ = eulerDegrees.z;
         } else {
-            cubeTransform.rotation = glm::quat(glm::vec3(
-              glm::radians(manual_rotation_x), glm::radians(manual_rotation_y),
-              glm::radians(manual_rotation_z)));
+            cubeTransform.rotation = glm::quat(glm::radians(
+              glm::vec3(uiState.manualRotationX, uiState.manualRotationY,
+                        uiState.manualRotationZ)));
         }
 
         glm::mat4 model = cubeTransform.computeTransform();
 
-        camera.position = camera_position;
-        camera.fov = fov;
-        camera.nearPlane = near_plane;
-        camera.farPlane = far_plane;
+        camera.position = uiState.cameraPosition;
+        camera.fov = uiState.fov;
+        camera.nearPlane = uiState.nearPlane;
+        camera.farPlane = uiState.farPlane;
         camera.aspectRatio = mainWin.getWidthOverHeight();
 
         glm::mat4 view = camera.computeViewMatrix();
@@ -250,81 +330,7 @@ void runRainbowCube()
             cubeMesh.draw(boundShader);
         }
 
-        // GUI
-        if (show_controls) {
-            ImGui::Begin("Rainbow Cube Controls", &show_controls);
-
-            ImGui::Text("Cube Renderer Controls");
-            ImGui::Separator();
-
-            // Rendering options
-            ImGui::ColorEdit3("Clear Color", (float*)&clear_color);
-            ImGui::Separator();
-
-            // Rotation controls
-            ImGui::Text("Rotation");
-            ImGui::Checkbox("Auto Rotate", &auto_rotate);
-
-            if (auto_rotate) {
-                ImGui::SliderFloat("Rotation Speed", &rotation_speed, 0.0f,
-                                   10.0f);
-                ImGui::SliderFloat3("Rotation Axis", &rotation_axis.x, -1.0f,
-                                    1.0f);
-                ImGui::Text("Time: %.2f", timeValue);
-                if (ImGui::Button("Reset Time")) {
-                    timeValue = 0.0f;
-                }
-            } else {
-                ImGui::Text("Manual Rotation (degrees)");
-                ImGui::SliderFloat("X Rotation", &manual_rotation_x, 0.0f,
-                                   360.0f);
-                ImGui::SliderFloat("Y Rotation", &manual_rotation_y, 0.0f,
-                                   360.0f);
-                ImGui::SliderFloat("Z Rotation", &manual_rotation_z, 0.0f,
-                                   360.0f);
-                if (ImGui::Button("Reset Rotation")) {
-                    manual_rotation_x = manual_rotation_y = manual_rotation_z =
-                      0.0f;
-                }
-            }
-
-            ImGui::Separator();
-            ImGui::Text("Camera");
-
-            ImGui::SliderFloat3("Camera Position", &camera_position.x, -10.0f,
-                                10.0f);
-            ImGui::SliderFloat("FOV", &fov, 1.0f, 120.0f);
-            ImGui::SliderFloat("Near Plane", &near_plane, 0.01f, 10.0f);
-            ImGui::SliderFloat("Far Plane", &far_plane, 10.0f, 200.0f);
-
-            if (ImGui::Button("Reset Camera")) {
-                camera_position = glm::vec3(0.0f, 0.0f, -3.0f);
-                fov = 75.0f;
-                near_plane = 0.1f;
-                far_plane = 100.0f;
-            }
-
-            ImGui::Separator();
-
-            // Performance info
-            ImGui::Text("Performance");
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-                        1000.0f / io.Framerate, io.Framerate);
-
-            ImGui::Separator();
-            ImGui::Checkbox("Show ImGui Demo", &show_demo);
-
-            ImGui::End();
-        }
-
-        // showPerfMonitor();
-
-        if (show_demo) {
-            ImGui::ShowDemoWindow(&show_demo);
-        }
-
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        drawImGuiAndUpdateState(uiState);
 
         mainWin.endUpdate();
     }
