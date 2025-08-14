@@ -15,12 +15,12 @@ class Shader
 {
     friend class BindObject;
 
+    uint32_t programId{};
+    static inline bool isBound = false;
+
     void linkProgram(uint32_t vertexShader, uint32_t geoShader,
                      uint32_t fragmentShader);
     void discoverUniforms();
-
-    uint32_t programId{};
-    static inline bool isBound = false;
 
   public:
     struct UniformInfo
@@ -65,6 +65,7 @@ class Shader
 
         ~BindObject();
 
+        void setUniformSampler2D(const std::string& name, int value);
         void setUniformInt(const std::string& name, int value);
         void setUniform(const std::string& name, float value);
         void setUniform(const std::string& name, const glm::vec2& value);

@@ -2,6 +2,7 @@
 #include "frontend/camera.hpp"
 #include "frontend/mesh.hpp"
 #include "frontend/shader.hpp"
+#include "frontend/texture.hpp"
 #include "frontend/vertexLayout.hpp"
 #include "frontend/window.hpp"
 #include "frontend/worldPose.hpp"
@@ -268,8 +269,9 @@ void runRainbowCube()
 
     Mesh cubeMesh{vertices, colourVertexLayout, indices};
 
-    Shader theShader{std::filesystem::path{"shaders/flatColour/vert.glsl"},
-                     std::filesystem::path{"shaders/flatColour/frag.glsl"}};
+    Shader theShader{
+      std::filesystem::path{"shaders/simpleColourOnly/vert.glsl"},
+      std::filesystem::path{"shaders/simpleColourOnly/frag.glsl"}};
 
     WorldPose cubeTransform;
     Camera camera{
@@ -342,12 +344,175 @@ void runRainbowCube()
     glfwTerminate();
 }
 
+void runTexturedCube()
+{
+    if (glfwInit() == 0) {
+        throw IrrecoverableError{"Failed to initialize GLFW."};
+    }
+
+    Window mainWin{"Textured Cube"};
+
+    setInitialOpenGLRenderConfig();
+
+    printOpenGLInfo();
+
+    struct TexturedVertex
+    {
+        glm::vec3 pos;
+        glm::vec2 tex;
+    } __attribute__((packed));
+
+    // Cube vertices with positions and texture coords
+    std::vector<TexturedVertex> vertices = {
+      // Front face (+Z, +W) -> Face 4 (Yellow, center-left: x=0.25-0.5,
+      // y=0.33-0.66)
+      { .pos = {-0.5F, -0.5F, 0.5F}, .tex = {0.25F, 0.33F}}, // bottom-left
+      {  .pos = {0.5F, -0.5F, 0.5F},  .tex = {0.5F, 0.33F}}, // bottom-right
+      {   .pos = {0.5F, 0.5F, 0.5F},  .tex = {0.5F, 0.66F}}, // top-right
+      {  .pos = {-0.5F, 0.5F, 0.5F}, .tex = {0.25F, 0.66F}}, // top-left
+
+      // Back face (-Z, -W) -> Face 3 (Blue, top: x=0.25-0.5, y=0.66-1.0)
+      {.pos = {-0.5F, -0.5F, -0.5F},  .tex = {0.25F, 1.0F}}, // bottom-left
+      { .pos = {0.5F, -0.5F, -0.5F},   .tex = {0.5F, 1.0F}}, // bottom-right
+      { .pos = {-0.5F, 0.5F, -0.5F}, .tex = {0.25F, 0.66F}}, // top-left
+      {  .pos = {0.5F, 0.5F, -0.5F},  .tex = {0.5F, 0.66F}}, // top-right
+
+      // Left face (-X, -U) -> Face 1 (Red, left: x=0-0.25, y=0.33-0.66)
+      {.pos = {-0.5F, -0.5F, -0.5F},  .tex = {0.0F, 0.33F}}, // bottom-left
+      { .pos = {-0.5F, -0.5F, 0.5F}, .tex = {0.25F, 0.33F}}, // bottom-right
+      {  .pos = {-0.5F, 0.5F, 0.5F}, .tex = {0.25F, 0.66F}}, // top-right
+      { .pos = {-0.5F, 0.5F, -0.5F},  .tex = {0.0F, 0.66F}}, // top-left
+
+      // Right face (+X, +U) -> Face 0 (Magenta, center-right: x=0.5-0.75,
+      // y=0.33-0.66)
+      {  .pos = {0.5F, -0.5F, 0.5F},  .tex = {0.5F, 0.33F}}, // bottom-left
+      { .pos = {0.5F, -0.5F, -0.5F}, .tex = {0.75F, 0.33F}}, // bottom-right
+      {  .pos = {0.5F, 0.5F, -0.5F}, .tex = {0.75F, 0.66F}}, // top-right
+      {   .pos = {0.5F, 0.5F, 0.5F},  .tex = {0.5F, 0.66F}}, // top-left
+
+      // Top face (+Y, +V) -> Face 2 (Green, bottom: x=0.25-0.5, y=0-0.33)
+      {  .pos = {-0.5F, 0.5F, 0.5F},  .tex = {0.25F, 0.0F}}, // bottom-left
+      {   .pos = {0.5F, 0.5F, 0.5F},   .tex = {0.5F, 0.0F}}, // bottom-right
+      {  .pos = {0.5F, 0.5F, -0.5F},  .tex = {0.5F, 0.33F}}, // top-right
+      { .pos = {-0.5F, 0.5F, -0.5F}, .tex = {0.25F, 0.33F}}, // top-left
+
+      // Bottom face (-Y, -V) -> Face 5 (Cyan, right: x=0.75-1.0, y=0.33-0.66)
+      {.pos = {-0.5F, -0.5F, -0.5F}, .tex = {0.75F, 0.66F}}, // bottom-left
+      { .pos = {0.5F, -0.5F, -0.5F},  .tex = {1.0F, 0.66F}}, // bottom-right
+      {  .pos = {0.5F, -0.5F, 0.5F},  .tex = {1.0F, 0.33F}}, // top-right
+      { .pos = {-0.5F, -0.5F, 0.5F}, .tex = {0.75F, 0.33F}}  // top-left
+    };
+
+    std::vector<uint32_t> indices = {// Front face
+                                     0, 1, 2, 2, 3, 0,
+                                     // Back face
+                                     5, 4, 6, 6, 7, 5,
+                                     // Left face
+                                     8, 9, 10, 10, 11, 8,
+                                     // Right face
+                                     12, 13, 14, 14, 15, 12,
+                                     // Top face
+                                     16, 17, 18, 18, 19, 16,
+                                     // Bottom face
+                                     20, 21, 22, 22, 23, 20};
+
+    Texture texture{"assets/textures/labelled-cube-map.png"};
+
+    VertexLayout texturedVertexLayout =
+      VertexLayout{}.addAttribute(0, 3, GL_FLOAT).addAttribute(1, 2, GL_FLOAT);
+
+    Mesh cubeMesh{vertices, texturedVertexLayout, indices};
+
+    Shader theShader{
+      std::filesystem::path{"shaders/simpleTextureOnly/vert.glsl"},
+      std::filesystem::path{"shaders/simpleTextureOnly/frag.glsl"}};
+
+    WorldPose cubeTransform;
+
+    Camera camera{
+      .position = {0.0F, 0.0F, 3.0F},
+        .target = {0.0F, 0.0F, 0.0F}
+    };
+    camera.aspectRatio = mainWin.getWidthOverHeight();
+
+    initImGui(mainWin);
+
+    UIState uiState{camera};
+
+    {
+        auto boundShader = theShader.bind();
+        texture.setInitUniform(boundShader, "theTexture", 0);
+    }
+
+    while (!mainWin.shouldClose()) {
+        glfwPollEvents();
+
+        startImGuiFrame();
+
+        mainWin.beginUpdate();
+        glClearColor(uiState.clearColour.x, uiState.clearColour.y,
+                     uiState.clearColour.z, uiState.clearColour.w);
+
+        if (uiState.autoRotate) {
+            float deltaAngle = 0.01F * uiState.rotationSpeed;
+            glm::quat incrementalRotation =
+              glm::angleAxis(deltaAngle, glm::normalize(uiState.rotationAxis));
+
+            cubeTransform.rotation =
+              incrementalRotation * cubeTransform.rotation;
+
+            glm::vec3 eulerDegrees =
+              glm::degrees(glm::eulerAngles(cubeTransform.rotation));
+            uiState.manualRotationX = eulerDegrees.x;
+            uiState.manualRotationY = eulerDegrees.y;
+            uiState.manualRotationZ = eulerDegrees.z;
+        } else {
+            cubeTransform.rotation = glm::quat(glm::radians(
+              glm::vec3(uiState.manualRotationX, uiState.manualRotationY,
+                        uiState.manualRotationZ)));
+        }
+
+        glm::mat4 model = cubeTransform.computeTransform();
+
+        camera.position = uiState.cameraPosition;
+        camera.fov = uiState.fov;
+        camera.nearPlane = uiState.nearPlane;
+        camera.farPlane = uiState.farPlane;
+        camera.aspectRatio = mainWin.getWidthOverHeight();
+
+        glm::mat4 view = camera.computeViewMatrix();
+        glm::mat4 projection = camera.computeProjectionMatrix();
+
+        {
+            auto boundShader = theShader.bind();
+            boundShader.setUniform("model", model);
+            boundShader.setUniform("view", view);
+            boundShader.setUniform("projection", projection);
+
+            texture.bind(boundShader, 0);
+
+            cubeMesh.draw(boundShader);
+        }
+
+        drawImGuiAndUpdateState(uiState);
+
+        mainWin.endUpdate();
+    }
+
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+
+    glfwTerminate();
+}
+
 } // namespace
 
 int main()
 {
     try {
-        runRainbowCube();
+        // runRainbowCube();
+        runTexturedCube();
     } catch (...) {
         return 1;
     }

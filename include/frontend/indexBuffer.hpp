@@ -7,7 +7,6 @@
 
 class IndexBuffer
 {
-  private:
     GLuint ebo = 0;
     size_t indexCount = 0;
 

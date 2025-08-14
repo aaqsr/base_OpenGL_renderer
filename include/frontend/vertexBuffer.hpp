@@ -5,7 +5,6 @@
 
 class VertexBuffer
 {
-  private:
     GLuint vbo = 0;
     size_t vertexCount = 0;
 
@@ -84,4 +83,3 @@ class VertexBuffer
         return vbo;
     }
 };
-

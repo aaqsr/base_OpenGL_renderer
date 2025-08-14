@@ -26,7 +26,6 @@ struct VertexAttribute
 
 class VertexLayout
 {
-  private:
     std::vector<VertexAttribute> attributes;
     size_t stride = 0;
 

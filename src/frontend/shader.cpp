@@ -287,6 +287,13 @@ Shader::BindObject::validateUniform(const std::string& name,
     return it->second;
 }
 
+void Shader::BindObject::setUniformSampler2D(const std::string& name, int value)
+{
+    if (const auto& info = validateUniform(name, GL_SAMPLER_2D)) {
+        glUniform1i(info->location, value);
+    }
+}
+
 void Shader::BindObject::setUniformInt(const std::string& name, int value)
 {
     if (const auto& info = validateUniform(name, GL_INT)) {

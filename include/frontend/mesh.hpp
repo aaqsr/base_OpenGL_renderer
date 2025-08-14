@@ -11,7 +11,6 @@
 
 class Mesh
 {
-  private:
     GLuint vao = 0;
     VertexBuffer vertexBuffer;
     std::optional<IndexBuffer> indexBuffer;
