@@ -2,9 +2,9 @@
 
 #include "util/logger.hpp"
 
-#include <string>
-
 #include <GL/glew.h>
+
+#include <string>
 
 inline void checkOpenGLError(const std::string& operation)
 {

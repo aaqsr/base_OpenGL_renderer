@@ -160,9 +160,9 @@ void Texture::loadFromFile(const std::filesystem::path& path)
 
 void Texture::setInitUniform(Shader::BindObject& shader,
                              const std::string& textureUniformName,
-                             GLuint textureUnit) const
+                             GLuint textureUnit)
 {
-    shader.setUniformSampler2D(textureUniformName, textureUnit);
+    shader.setUniformSampler2D(textureUniformName, static_cast<int>(textureUnit));
 }
 
 void Texture::bind(Shader::BindObject& shader, GLuint textureUnit) const

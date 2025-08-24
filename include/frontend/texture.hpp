@@ -34,9 +34,9 @@ class Texture
 
     ~Texture();
 
-    void setInitUniform(Shader::BindObject& shader,
+    static void setInitUniform(Shader::BindObject& shader,
                         const std::string& textureUniformName,
-                        GLuint textureUnit) const;
+                        GLuint textureUnit);
 
     void bind(Shader::BindObject& shader, GLuint textureUnit) const;
 

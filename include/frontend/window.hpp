@@ -1,8 +1,8 @@
 #pragma once
 
 #include "util/perf.hpp"
+
 #include <cstdint>
-#include <functional>
 #include <string>
 
 struct GLFWwindow;

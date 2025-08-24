@@ -7,7 +7,6 @@
 // Work on this when we actually need multiple render targets.
 class Framebuffer
 {
-  private:
     GLuint fbo = 0;
     GLuint colorTexture = 0;
     GLuint depthTexture = 0;
