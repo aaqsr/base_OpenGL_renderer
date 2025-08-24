@@ -1,0 +1,39 @@
+newmtl lambert7
+    Ka 0 0 0
+    Kd 1 1 1
+    Ke 0 0 0
+    illum 2
+    d 1
+    map_Kd white.tga
+
+newmtl lambert5
+    Ka 0 0 0
+    Kd 1 1 1
+    Ke 0 0 0
+    illum 2
+    d 1
+    map_Kd checkerA.tga
+
+newmtl lambert3
+    Ka 0 0 0
+    Kd 1 1 1
+    Ke 0 0 0
+    illum 2
+    d 1
+    map_Kd checkerA.tga
+
+newmtl lambert1
+    Ka 0 0 0
+    Kd 1 1 1
+    Ke 0 0 0
+    illum 2
+    d 1
+    map_Kd IndentA.tga
+
+newmtl lambert6
+    Ka 0 0 0
+    Kd 1 1 1
+    Ke 0 0 0
+    illum 2
+    d 1
+    map_Kd checkerA.tga
