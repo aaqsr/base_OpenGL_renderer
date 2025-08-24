@@ -122,13 +122,11 @@ void run()
             playerCamera.target = arcball.target;
         }
 
-        glm::mat4 model = mainModel.pose.computeTransform();
         glm::mat4 view = playerCamera.computeViewMatrix();
         glm::mat4 projection = playerCamera.computeProjectionMatrix();
 
         {
             auto boundShader = mainShader.bind();
-            boundShader.setUniform("model", model);
             boundShader.setUniform("view", view);
             boundShader.setUniform("projection", projection);
             boundShader.setUniform("viewPos", playerCamera.position);
